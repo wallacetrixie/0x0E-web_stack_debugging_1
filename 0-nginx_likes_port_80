@@ -1,12 +1,27 @@
-#!/usr/bin/env bash
-# This script configures Nginx to listen on port 80 of all active IPv4 IPs
+#!/bin/bash
 
-# Backup the default Nginx configuration file
-cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.bak
+# Step 1: Check Nginx configuration
+nginx_config="/etc/nginx/sites-available/default"
+if ! grep -q "listen 80;" "$nginx_config"; then
+    echo "listen 80;" | sudo tee -a "$nginx_config" > /dev/null
+fi
 
-# Edit the default Nginx configuration file to listen on port 80
-sed -i 's/listen 80;/listen 80 default_server;/g' /etc/nginx/sites-available/default
+# Step 2: Verify conflicting services
+conflicting_service=$(sudo netstat -tuln | grep ":80 ")
+if [ -n "$conflicting_service" ]; then
+    echo "Error: Another service is already listening on port 80."
+    echo "$conflicting_service"
+    exit 1
+fi
 
-# Restart Nginx to apply the changes
-service nginx restart
+# Step 3: Restart Nginx
+sudo systemctl restart nginx
+
+# Verify Nginx is listening on port 80
+if ! curl -sI 0:80 | grep -q "HTTP/1.1 200 OK"; then
+    echo "Error: Nginx is not listening on port 80 after restart."
+    exit 1
+fi
+
+echo "Nginx is now listening on port 80."
 
